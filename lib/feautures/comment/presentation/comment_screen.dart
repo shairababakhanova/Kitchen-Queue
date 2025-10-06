@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:kitchen_queue/feautures/comment/blocs/comment_cubit.dart';
 import 'package:kitchen_queue/feautures/comment/blocs/comment_state.dart';
-
 
 class CommentsScreen extends StatefulWidget {
   final String queueKey;
@@ -30,15 +30,13 @@ class _CommentsScreenState extends State<CommentsScreen> {
   String? _selectedImagePath;
   final ImagePicker _picker = ImagePicker();
 
- 
-
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+        maxWidth: 1280,
+        maxHeight: 720,
+        imageQuality: 70,
       );
       if (image != null) {
         setState(() {
@@ -89,37 +87,53 @@ class _CommentsScreenState extends State<CommentsScreen> {
       );
       return;
     }
-    context.read<CommentCubit>().addComment(
-          authorName: _nameController.text,
-          text: _textController.text,
-          queueKey: widget.queueKey,
-          imagePath: _selectedImagePath,
-        );
-
-        _nameController.clear();
-        _textController.clear();
-        setState(() {
-          _selectedImagePath = null;
-        });
-        
+    try {
+      context.read<CommentCubit>().addComment(
+            authorName: _nameController.text,
+            text: _textController.text,
+            queueKey: widget.queueKey,
+            imagePath: _selectedImagePath,
+          );
+      _nameController.clear();
+      _textController.clear();
+      setState(() {
+        _selectedImagePath = null;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ошибка: $e')),
+      );
+    }
   }
 
-  void _showFullImage(String imagePath) {
+  void _showFullImage(String imageBase64) {
+    if (!_isValidBase64(imageBase64)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Некорректное изображение')),
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => Scaffold(
           appBar: AppBar(
             backgroundColor: Colors.black,
-            leading: IconButton(onPressed: () {
-          context.pop();
-        }, icon: Icon(Icons.arrow_back)),
-           iconTheme: const IconThemeData(color: Colors.white),
+            leading: IconButton(
+              onPressed: () => context.pop(),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+            ),
           ),
           backgroundColor: Colors.black,
           body: Center(
             child: InteractiveViewer(
-              child: Image.file(File(imagePath)),
+              child: Image.memory(
+                base64Decode(imageBase64),
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Text('Ошибка загрузки изображения', style: TextStyle(color: Colors.white));
+                },
+              ),
             ),
           ),
         ),
@@ -127,34 +141,45 @@ class _CommentsScreenState extends State<CommentsScreen> {
     );
   }
 
-  
+  bool _isValidBase64(String str) {
+    try {
+      if (str.isEmpty) return false;
+      final base64Pattern = RegExp(r'^[A-Za-z0-9+/=]+$');
+      if (!base64Pattern.hasMatch(str)) return false;
+      base64Decode(str);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd.MM.yyyy');
-    
 
     return Scaffold(
       appBar: AppBar(
-        title: Center(child: Text('Комментарии: ${widget.userName}')), 
+        title: Text('Комментарии: ${widget.userName}'),
+        centerTitle: true,
         backgroundColor: Colors.blueGrey,
-        leading: IconButton(onPressed: () {
-          context.go('/');
-        }, icon: Icon(Icons.arrow_back))
+        leading: IconButton(
+          onPressed: () => context.go('/queue'),
+          icon: const Icon(Icons.arrow_back),
+        ),
       ),
       body: Column(
         children: [
           Expanded(
             child: BlocBuilder<CommentCubit, CommentState>(
               builder: (context, state) {
-                final comments = context
-                    .read<CommentCubit>()
-                    .getCommentsForQueue(widget.queueKey);
+                final comments = context.read<CommentCubit>().getCommentsForQueue(widget.queueKey);
+
+                if (state.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
                 if (comments.isEmpty) {
-                  return const Center(
-                    child: Text('Комментариев пока нет'),
-                  );
+                  return const Center(child: Text('Комментариев пока нет'));
                 }
 
                 return ListView.builder(
@@ -163,10 +188,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                   itemBuilder: (context, index) {
                     final comment = comments[index];
                     return Card(
-                      margin: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 4,
-                      ),
+                      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -182,32 +204,50 @@ class _CommentsScreenState extends State<CommentsScreen> {
                                     fontSize: 16,
                                   ),
                                 ),
-                                Text(
-                                  dateFormat.format(comment.dateTime),
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 12,
-                                  ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      dateFormat.format(comment.dateTime),
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () {
+                                        if (comment.id != null) {
+                                          context.read<CommentCubit>().deleteComment(comment.id!);
+                                        }
+                                      },
+                                      icon: const Icon(Icons.delete),
+                                    ),
+                                  ],
                                 ),
-                                IconButton(onPressed: () {
-                                  context.read<CommentCubit>().deleteComment(index);
-                                }, icon: Icon(Icons.delete))
                               ],
                             ),
                             const SizedBox(height: 8),
                             Text(comment.text),
-                            if (comment.imagePath != null) ...[
+                            if (comment.imageBase64 != null) ...[
                               const SizedBox(height: 8),
                               GestureDetector(
-                                onTap: () =>
-                                    _showFullImage(comment.imagePath!),
+                                onTap: () => _showFullImage(comment.imageBase64!),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    File(comment.imagePath!),
-                                    height: 200,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
+                                  child: Builder(
+                                    builder: (context) {
+                                      if (!_isValidBase64(comment.imageBase64!)) {
+                                        return const Text('Некорректное изображение');
+                                      }
+                                      return Image.memory(
+                                        base64Decode(comment.imageBase64!),
+                                        height: 200,
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return const Text('Ошибка загрузки изображения');
+                                        },
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
@@ -271,9 +311,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                         top: 4,
                         child: IconButton(
                           icon: const Icon(Icons.close, color: Colors.white),
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.black54,
-                          ),
+                          style: IconButton.styleFrom(backgroundColor: Colors.black54),
                           onPressed: () {
                             setState(() {
                               _selectedImagePath = null;
@@ -290,6 +328,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _showImageSourceDialog,
+                        icon: const Icon(Icons.add_a_photo),
                         label: const Text('Добавить фото'),
                       ),
                     ),
@@ -297,6 +336,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: _addComment,
+                        icon: const Icon(Icons.send),
                         label: const Text('Отправить'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueGrey,

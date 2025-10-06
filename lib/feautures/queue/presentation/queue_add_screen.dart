@@ -20,6 +20,7 @@ class _QueueAddScreenState extends State<QueueAddScreen> {
 void initState() {
   super.initState();
   context.read<QueueCubit>().clearSelection();
+  context.read<QueueCubit>().loadUsers();
 }
 
   @override
@@ -30,7 +31,7 @@ void initState() {
         title: const Center(child: Text('Добавить')),
         backgroundColor: Colors.blueGrey,
         leading: IconButton(onPressed: () {
-          context.go('/');
+          context.go('/queue');
         }, icon: Icon(Icons.arrow_back))
 
         ),
@@ -46,7 +47,7 @@ void initState() {
                     borderRadius: BorderRadius.circular(8),
                     hint: const Text('Выбрать дежурного'),
                     value: state.selectedUser,
-                    items: cubit.users.map((cat) {
+                    items: state.users.map((cat) {
                       return DropdownMenuItem(
                         value: cat,
                         child: Text(cat.name));
@@ -91,11 +92,11 @@ void initState() {
                           if (state.selectedUser != null) {
                             cubit.addQueue(
                               Queue(
-                                userId: state.selectedUserId,
+                                id: state.selectedUser!.key,
                                 user: state.selectedUser, 
                                 date: state.selectedDate),
                             );
-                            context.go('/');
+                            context.go('/queue');
                           }
                          
                         }, 

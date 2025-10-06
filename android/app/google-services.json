@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "544593605205",
+    "project_id": "kitchen-queue-3d731",
+    "storage_bucket": "kitchen-queue-3d731.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:544593605205:android:c698a1960b6983d4985adc",
+        "android_client_info": {
+          "package_name": "com.example.kitchen_queue"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyxe8yLYOcOx5Cb1PPjiJ9-VjRZOOBOkE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
